@@ -158,7 +158,7 @@ impl Orchestrator {
                     .await?;
             }
 
-            ActorMessage::GenerateOutput(output) => {
+            ActorMessage::GenerateResponse(output) => {
                 // Route to Apply
                 let input = ApplyInput {
                     worktree_id: "default".to_string(), // Would be generated
