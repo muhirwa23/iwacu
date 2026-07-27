@@ -4,108 +4,322 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>eHanga - Online Shop</title>
+    <meta name="description" content="eHanga - Your premium online shopping destination for quality products">
+    <meta name="keywords" content="online shop, e-commerce, shopping, fashion, accessories">
+    <title>eHanga - Premium Online Shop</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href='https://unpkg.com/boxicons@2.1.1/css/boxicons.min.css'>
+    <link rel="icon" type="image/x-icon" href="img/favicon.ico">
 </head>
 <body>
-    <!--header-->
+    <!-- Header -->
     <header>
-        <!--nav-->
+        <!-- Navigation -->
         <div class="nav container">
-            <a href="#" class="logo">eHanga</a>
-            <!--cart icon-->
-            <i class='bx bx-shopping-bag' id="cart-icon"></i>
-            <!--cart-->
+            <a href="#" class="logo">
+                <i class='bx bx-store'></i> eHanga
+            </a>
+            
+            <!-- Search Bar -->
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search products...">
+                <i class='bx bx-search' id="search-icon"></i>
+            </div>
+            
+            <!-- Cart Icon -->
+            <div class="nav-icons">
+                <i class='bx bx-moon' id="theme-toggle" title="Toggle Dark Mode"></i>
+                <i class='bx bx-shopping-bag' id="cart-icon">
+                    <span class="cart-count">0</span>
+                </i>
+            </div>
+            
+            <!-- Cart Sidebar -->
             <div class="cart">
-                <h2 class="cart-title">Your Cart</h2>   
-                <!--content-->
+                <h2 class="cart-title">
+                    <i class='bx bx-shopping-bag'></i> Your Cart
+                </h2>
+                
+                <!-- Cart Content -->
                 <div class="cart-content">
                     <!-- Cart items will be added here dynamically -->
                 </div>
-                <!--total-->
-                <div class="total">
-                    <div class="total-title">Total</div>
-                    <div class="total-price">$0</div>
+                
+                <!-- Empty Cart Message -->
+                <div class="empty-cart-message">
+                    <i class='bx bx-shopping-bag'></i>
+                    <p>Your cart is empty</p>
+                    <button class="continue-shopping">Continue Shopping</button>
                 </div>
-                <!--buy button-->
-                <button type="button" class="btn-buy">Buy Now</button>
-                <!--cart close-->
+                
+                <!-- Total -->
+                <div class="total">
+                    <div class="total-title">Total:</div>
+                    <div class="total-price">$0.00</div>
+                </div>
+                
+                <!-- Checkout Buttons -->
+                <div class="checkout-buttons">
+                    <button type="button" class="btn-checkout">Checkout</button>
+                    <button type="button" class="btn-clear-cart">Clear Cart</button>
+                </div>
+                
+                <!-- Close Cart -->
                 <i class='bx bx-x' id="close-cart"></i>
             </div>
         </div>
     </header>
 
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Welcome to eHanga</h1>
+            <p>Discover premium products at unbeatable prices</p>
+            <button class="shop-now-btn">Shop Now</button>
+        </div>
+    </section>
+
+    <!-- Shop Section -->
     <section class="shop container">
-        <h2 class="section-title">Shop Products</h2>
-        <!--content-->
-        <div class="shop-content">
-            <!--box 1-->
-            <div class="product-box">
-                <img src="img/a1.jpg" alt="" class="product-img">
-                <h2 class="product-title">Swatx</h2>
-                <span class="price">$12</span>
-                <i class='bx bx-shopping-bag add-cart'></i>
+        <h2 class="section-title">
+            <i class='bx bx-grid-alt'></i> Featured Products
+        </h2>
+        
+        <!-- Filter Buttons -->
+        <div class="filter-buttons">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="clothing">Clothing</button>
+            <button class="filter-btn" data-filter="accessories">Accessories</button>
+            <button class="filter-btn" data-filter="electronics">Electronics</button>
+        </div>
+        
+        <!-- Shop Content -->
+        <div class="shop-content" id="products-container">
+            <!-- Product 1 -->
+            <div class="product-box" data-category="clothing">
+                <div class="product-badge">New</div>
+                <img src="img/a1.jpg" alt="Swatx - Premium Quality" class="product-img" loading="lazy">
+                <div class="product-info">
+                    <h2 class="product-title">Swatx</h2>
+                    <div class="product-rating">
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star-half'></i>
+                        <span>(4.5)</span>
+                    </div>
+                    <span class="price">$12.00</span>
+                    <i class='bx bx-shopping-bag add-cart' title="Add to Cart"></i>
+                </div>
             </div>
-            <!--box 2-->
-            <div class="product-box">
-                <img src="img/a4.jpg" alt="" class="product-img">
-                <h2 class="product-title">Paritno</h2>
-                <span class="price">$20</span>
-                <i class='bx bx-shopping-bag add-cart'></i>
+            
+            <!-- Product 2 -->
+            <div class="product-box" data-category="accessories">
+                <img src="img/a4.jpg" alt="Paritno - Stylish Design" class="product-img" loading="lazy">
+                <div class="product-info">
+                    <h2 class="product-title">Paritno</h2>
+                    <div class="product-rating">
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bx-star'></i>
+                        <span>(4.0)</span>
+                    </div>
+                    <span class="price">$20.00</span>
+                    <i class='bx bx-shopping-bag add-cart' title="Add to Cart"></i>
+                </div>
             </div>
-            <!--box 3-->
-            <div class="product-box">
-                <img src="img/a5.jpg" alt="" class="product-img">
-                <h2 class="product-title">Gibusat</h2>
-                <span class="price">$40</span>
-                <i class='bx bx-shopping-bag add-cart'></i>
+            
+            <!-- Product 3 -->
+            <div class="product-box" data-category="clothing">
+                <div class="product-badge sale">Sale</div>
+                <img src="img/a5.jpg" alt="Gibusat - High Quality" class="product-img" loading="lazy">
+                <div class="product-info">
+                    <h2 class="product-title">Gibusat</h2>
+                    <div class="product-rating">
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <span>(5.0)</span>
+                    </div>
+                    <span class="price">$40.00</span>
+                    <i class='bx bx-shopping-bag add-cart' title="Add to Cart"></i>
+                </div>
             </div>
-            <!--box 4-->
-            <div class="product-box">
-                <img src="img/a6.jpg" alt="" class="product-img">
-                <h2 class="product-title">Gibxt</h2>
-                <span class="price">$12</span>
-                <i class='bx bx-shopping-bag add-cart'></i>
+            
+            <!-- Product 4 -->
+            <div class="product-box" data-category="electronics">
+                <img src="img/a6.jpg" alt="Gibxt - Modern Tech" class="product-img" loading="lazy">
+                <div class="product-info">
+                    <h2 class="product-title">Gibxt</h2>
+                    <div class="product-rating">
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star-half'></i>
+                        <i class='bx bx-star'></i>
+                        <span>(3.5)</span>
+                    </div>
+                    <span class="price">$12.00</span>
+                    <i class='bx bx-shopping-bag add-cart' title="Add to Cart"></i>
+                </div>
             </div>
-            <!--box 5-->
-            <div class="product-box">
-                <img src="img/a8.jpg" alt="" class="product-img">
-                <h2 class="product-title">Kotier</h2>
-                <span class="price">$15</span>
-                <i class='bx bx-shopping-bag add-cart'></i>
+            
+            <!-- Product 5 -->
+            <div class="product-box" data-category="clothing">
+                <img src="img/a8.jpg" alt="Kotier - Fashion Forward" class="product-img" loading="lazy">
+                <div class="product-info">
+                    <h2 class="product-title">Kotier</h2>
+                    <div class="product-rating">
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bx-star'></i>
+                        <span>(4.0)</span>
+                    </div>
+                    <span class="price">$15.00</span>
+                    <i class='bx bx-shopping-bag add-cart' title="Add to Cart"></i>
+                </div>
             </div>
-            <!--box 6-->
-            <div class="product-box">
-                <img src="img/b2.jpg" alt="" class="product-img">
-                <h2 class="product-title">Bag</h2>
-                <span class="price">$12</span>
-                <i class='bx bx-shopping-bag add-cart'></i>
+            
+            <!-- Product 6 -->
+            <div class="product-box" data-category="accessories">
+                <div class="product-badge hot">Hot</div>
+                <img src="img/b2.jpg" alt="Bag - Premium Leather" class="product-img" loading="lazy">
+                <div class="product-info">
+                    <h2 class="product-title">Premium Bag</h2>
+                    <div class="product-rating">
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star-half'></i>
+                        <span>(4.5)</span>
+                    </div>
+                    <span class="price">$12.00</span>
+                    <i class='bx bx-shopping-bag add-cart' title="Add to Cart"></i>
+                </div>
             </div>
-            <!--box 7-->
-            <div class="product-box">
-                <img src="img/b8.jpg" alt="" class="product-img">
-                <h2 class="product-title">Chip</h2>
-                <span class="price">$71</span>
-                <i class='bx bx-shopping-bag add-cart'></i>
+            
+            <!-- Product 7 -->
+            <div class="product-box" data-category="electronics">
+                <img src="img/b8.jpg" alt="Chip - Advanced Technology" class="product-img" loading="lazy">
+                <div class="product-info">
+                    <h2 class="product-title">Tech Chip</h2>
+                    <div class="product-rating">
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <span>(5.0)</span>
+                    </div>
+                    <span class="price">$71.00</span>
+                    <i class='bx bx-shopping-bag add-cart' title="Add to Cart"></i>
+                </div>
             </div>
-            <!--box 8-->
-            <div class="product-box">
-                <img src="img/b10.jpg" alt="" class="product-img">
-                <h2 class="product-title">Houstyo</h2>
-                <span class="price">$19</span>
-                <i class='bx bx-shopping-bag add-cart'></i>
+            
+            <!-- Product 8 -->
+            <div class="product-box" data-category="accessories">
+                <img src="img/b10.jpg" alt="Houstyo - Elegant Design" class="product-img" loading="lazy">
+                <div class="product-info">
+                    <h2 class="product-title">Houstyo</h2>
+                    <div class="product-rating">
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star'></i>
+                        <i class='bx bxs-star-half'></i>
+                        <i class='bx bx-star'></i>
+                        <span>(3.5)</span>
+                    </div>
+                    <span class="price">$19.00</span>
+                    <i class='bx bx-shopping-bag add-cart' title="Add to Cart"></i>
+                </div>
             </div>
         </div>
     </section>
-    <!--footer-->
-    <section class="footer">
+
+    <!-- Features Section -->
+    <section class="features container">
+        <div class="feature-box">
+            <i class='bx bx-truck'></i>
+            <h3>Free Shipping</h3>
+            <p>On orders over $50</p>
+        </div>
+        <div class="feature-box">
+            <i class='bx bx-refresh'></i>
+            <h3>Easy Returns</h3>
+            <p>30-day return policy</p>
+        </div>
+        <div class="feature-box">
+            <i class='bx bx-shield-quarter'></i>
+            <h3>Secure Payment</h3>
+            <p>100% secure transactions</p>
+        </div>
+        <div class="feature-box">
+            <i class='bx bx-headset'></i>
+            <h3>24/7 Support</h3>
+            <p>Dedicated customer support</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
         <div class="container">
-            <div class="row text-center">
-                <p>© eHanga 2023</p>
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3><i class='bx bx-store'></i> eHanga</h3>
+                    <p>Your trusted online shopping destination for quality products at great prices.</p>
+                    <div class="social-links">
+                        <a href="#"><i class='bx bxl-facebook'></i></a>
+                        <a href="#"><i class='bx bxl-twitter'></i></a>
+                        <a href="#"><i class='bx bxl-instagram'></i></a>
+                        <a href="#"><i class='bx bxl-youtube'></i></a>
+                    </div>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#">Home</a></li>
+                        <li><a href="#">Shop</a></li>
+                        <li><a href="#">About Us</a></li>
+                        <li><a href="#">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Customer Service</h4>
+                    <ul>
+                        <li><a href="#">FAQ</a></li>
+                        <li><a href="#">Shipping Info</a></li>
+                        <li><a href="#">Returns</a></li>
+                        <li><a href="#">Track Order</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Newsletter</h4>
+                    <p>Subscribe for exclusive deals</p>
+                    <div class="newsletter-form">
+                        <input type="email" placeholder="Your email">
+                        <button><i class='bx bx-send'></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 eHanga. All rights reserved. | Made with <i class='bx bx-heart'></i></p>
             </div>
         </div>
-    </section>
+    </footer>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <i class='bx bx-check-circle'></i>
+        <span id="toast-message">Item added to cart!</span>
+    </div>
 
     <script src="js/main.js"></script>
 </body>
