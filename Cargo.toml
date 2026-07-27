@@ -1,0 +1,28 @@
+[package]
+name = "symbiote"
+version = "0.1.0"
+edition = "2021"
+description = "The Autonomous Symbiote v3.0 - A local-first, actor-based agentic CLI"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+thiserror = "1.0"
+miette = { version = "5.10", features = ["fancy"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rusqlite = { version = "0.30", features = ["bundled"] }
+syn = { version = "2.0", features = ["full", "visit-mut"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+lsp-types = "0.94"
+uuid = { version = "1.6", features = ["v4"] }
+clap = { version = "4.4", features = ["derive"] }
+async-trait = "0.1"
+
+[[bin]]
+name = "agentic"
+path = "src/main.rs"
