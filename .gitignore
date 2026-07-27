@@ -1,25 +1,45 @@
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# IDE files
-.idea/
-.vscode/
-*.sublime-project
-*.sublime-workspace
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+```
+# Rust-specific ignores
+target/
+Cargo.lock
 
 # Dependencies
-node_modules/
+vendor/
 
+# Compiled and build artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.exe
+*.out
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# System files
+.DS_Store
+Thumbs.db
+```

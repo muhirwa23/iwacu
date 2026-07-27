@@ -1,0 +1,53 @@
+[package]
+name = "agentic"
+version = "0.1.0"
+edition = "2021"
+description = "The Autonomous Symbiote - An agentic CLI that engineers code using LSP, Mutation Testing, and Actor-based Graph Routing"
+
+[dependencies]
+# Async runtime & actor system
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+
+# LSP client for semantic grounding
+tower-lsp = "0.20"
+
+# Tree-sitter for AST parsing
+tree-sitter = "0.20"
+tree-sitter-rust = "0.20"
+
+# Git operations
+git2 = "0.18"
+
+# JSON handling
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP client for fetching rustc docs
+reqwest = { version = "0.11", features = ["json"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Terminal UI
+crossterm = "0.27"
+ratatui = "0.26"
+
+# Diff/patch handling
+similar = "2"
+
+# UUID for worktree IDs
+uuid = { version = "1", features = ["v4"] }
+
+# Temp directories
+tempfile = "3"
+
+# For mutation testing
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
