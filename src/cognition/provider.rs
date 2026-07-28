@@ -76,47 +76,39 @@ impl ModelRouter {
     
     /// Route request to appropriate model based on node type and budget
     pub fn route(&self, node: &str, _remaining_budget: f64) -> Result<Arc<dyn LlmProvider>, SystemError> {
-        // Hardcoded routing rules per specification
+        // Routing rules mapping each reasoning stage to an NVIDIA-hosted model.
         let preferred_model = match node {
-            "plan" => {
-                // Use sonnet if budget > $0.02, else haiku
-                if self.budget.remaining() > 0.02 {
-                    "claude-sonnet"
-                } else {
-                    "claude-haiku"
-                }
-            }
-            "generate" => {
-                // Always use sonnet unless critically low budget
-                if self.budget.remaining() > 0.01 {
-                    "claude-sonnet"
-                } else {
-                    "claude-haiku"
-                }
-            }
-            "debug" => "claude-haiku", // Fast, cheap
-            "synthesize" => "claude-haiku",
-            _ => "claude-sonnet", // Default
+            // Planning: strong reasoning model
+            "plan" => "deepseek",
+            // Code generation: capable general model
+            "generate" => "glm",
+            // Debugging: fast, long-context model
+            "debug" => "kimi",
+            // Synthesis / summary: lightweight model
+            "synthesize" => "inkling",
+            _ => "glm", // Default
         };
-        
+
         // Try preferred model first, fallback to any available
         if let Some(provider) = self.providers.get(preferred_model) {
             return Ok(Arc::clone(provider));
         }
-        
-        // Fallback: try alternative names
+
+        // Fallback: try fully-qualified model names
         let fallbacks = match preferred_model {
-            "claude-sonnet" => vec!["claude-sonnet-4-20250514", "claude-3-5-sonnet"],
-            "claude-haiku" => vec!["claude-3-haiku", "claude-3-5-haiku"],
+            "deepseek" => vec!["deepseek-ai/deepseek-v4-pro"],
+            "glm" => vec!["z-ai/glm-5.2"],
+            "kimi" => vec!["moonshotai/kimi-k2.6"],
+            "inkling" => vec!["thinkingmachines/inkling"],
             _ => vec![],
         };
-        
+
         for fallback in fallbacks {
             if let Some(provider) = self.providers.get(fallback) {
                 return Ok(Arc::clone(provider));
             }
         }
-        
+
         // Last resort: return any available provider
         self.providers.values().next().map(Arc::clone).ok_or_else(|| {
             SystemError::Cognition("No LLM providers configured".to_string())
@@ -125,6 +117,49 @@ impl ModelRouter {
     
     pub fn budget(&self) -> &BudgetTracker {
         &self.budget
+    }
+
+    /// Build an ordered chain of providers for a stage: the preferred model
+    /// first, followed by every other configured model as fallbacks. This lets
+    /// the models "work hand in hand" — if one model's key/account fails (e.g.
+    /// a 404 model-not-found), the next available model transparently takes over.
+    pub fn route_chain(&self, node: &str) -> Vec<Arc<dyn LlmProvider>> {
+        let primary = match node {
+            "plan" => "deepseek",
+            "generate" => "glm",
+            "debug" => "kimi",
+            "synthesize" => "inkling",
+            _ => "glm",
+        };
+
+        // Global fallback preference order.
+        let order = ["glm", "deepseek", "kimi", "inkling"];
+
+        let mut chain: Vec<Arc<dyn LlmProvider>> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        if let Some(p) = self.providers.get(primary) {
+            chain.push(Arc::clone(p));
+            seen.insert(primary.to_string());
+        }
+        for name in order {
+            if seen.contains(name) {
+                continue;
+            }
+            if let Some(p) = self.providers.get(name) {
+                chain.push(Arc::clone(p));
+                seen.insert(name.to_string());
+            }
+        }
+        // Include any other providers registered under non-standard keys.
+        for (k, p) in &self.providers {
+            if !seen.contains(k) {
+                chain.push(Arc::clone(p));
+                seen.insert(k.clone());
+            }
+        }
+
+        chain
     }
     
     pub fn budget_mut(&mut self) -> &mut BudgetTracker {

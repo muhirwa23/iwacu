@@ -20,7 +20,7 @@ quote = "1.0"
 proc-macro2 = "1.0"
 lsp-types = "0.94"
 uuid = { version = "1.6", features = ["v4"] }
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.4", features = ["derive", "env"] }
 async-trait = "0.1"
 
 [[bin]]

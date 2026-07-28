@@ -25,13 +25,13 @@ impl AnthropicProvider {
     }
 
     pub fn with_model(mut self, model: String) -> Self {
-        self.model = model;
         // Adjust cost based on model
         self.cost_per_1k = match model.as_str() {
             m if m.contains("haiku") => 0.00025,
             m if m.contains("opus") => 0.015,
             _ => 0.003, // sonnet
         };
+        self.model = model;
         self
     }
 

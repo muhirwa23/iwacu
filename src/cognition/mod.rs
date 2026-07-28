@@ -1,5 +1,6 @@
 pub mod provider;
 pub mod anthropic;
+pub mod nvidia;
 pub mod prompts;
 
 use std::sync::Arc;
@@ -9,7 +10,8 @@ use tracing::{info, error, warn};
 
 use crate::core::messages::{ActorMessage, CognitionRequest, TaskContext, SystemError};
 use provider::{LlmProvider, ModelRouter};
-use anthropic::AnthropicProvider;
+pub use anthropic::AnthropicProvider;
+pub use nvidia::NvidiaProvider;
 use prompts::{plan_prompt, generate_prompt, debug_prompt, synthesize_prompt};
 
 /// Cognition actor that handles LLM interactions with multi-model routing
@@ -38,7 +40,7 @@ impl CognitionActor {
             };
 
             if let Err(e) = msg.reply_to.send(result.map(Value::String)) {
-                error!("Failed to send reply: {}", e);
+                error!("Failed to send reply: {:?}", e);
             }
         }
 
@@ -51,6 +53,47 @@ impl CognitionActor {
         self.router.route(node, self.router.budget().remaining())
     }
 
+    /// Send a chat request for a stage, trying the preferred model first and
+    /// transparently falling back to the next available model on failure
+    /// (e.g. a 404 model-not-found for a given key/account).
+    async fn chat_with_fallback(
+        &self,
+        node: &str,
+        system: &str,
+        user: &str,
+    ) -> Result<Value, SystemError> {
+        let chain = self.router.route_chain(node);
+        if chain.is_empty() {
+            return Err(SystemError::Cognition("No LLM providers configured".to_string()));
+        }
+
+        let mut last_err: Option<SystemError> = None;
+        for (idx, provider) in chain.iter().enumerate() {
+            if idx > 0 {
+                warn!(
+                    "Falling back to model '{}' for '{}' stage",
+                    provider.model_name(),
+                    node
+                );
+            }
+            match provider.chat_json(system, user).await {
+                Ok(value) => return Ok(value),
+                Err(e) => {
+                    warn!(
+                        "Model '{}' failed for '{}' stage: {}",
+                        provider.model_name(),
+                        node,
+                        e
+                    );
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        Err(last_err
+            .unwrap_or_else(|| SystemError::Cognition("All LLM providers failed".to_string())))
+    }
+
     /// Estimate cost based on prompt length (rough estimation)
     fn estimate_cost(&self, system: &str, user: &str, provider: &dyn LlmProvider) -> f64 {
         let total_chars = system.len() + user.len();
@@ -61,33 +104,24 @@ impl CognitionActor {
     async fn handle_plan(&self, context: TaskContext) -> Result<String, SystemError> {
         info!("Handling plan request");
         
-        let provider = self.get_provider("plan")?;
         let (system, user) = plan_prompt(&context.task, "architectural_analysis");
-        
-        // Self-consistency: run 3 times with low temperature and vote
-        let mut plans = Vec::new();
-        for i in 0..3 {
-            info!("Plan iteration {}/3", i + 1);
-            
-            let full_user = format!("{}\nLSP Context: {}", user, 
-                context.lsp_context.as_deref().unwrap_or("No LSP context available"));
-            
-            match provider.chat_json(&system, &full_user).await {
-                Ok(response) => {
-                    if let Some(plan_text) = response.as_str() {
-                        plans.push(plan_text.to_string());
-                    }
-                }
-                Err(e) => {
-                    warn!("Plan iteration {} failed: {}", i + 1, e);
-                }
-            }
+
+        // Single planning call. (Self-consistency voting across multiple
+        // iterations is possible, but the reasoning model is slow and only the
+        // first successful plan is used, so we issue one request.)
+        let full_user = format!("{}\nLSP Context: {}", user,
+            context.lsp_context.as_deref().unwrap_or("No LSP context available"));
+
+        let response = self.chat_with_fallback("plan", &system, &full_user).await?;
+        let plan = response
+            .as_str()
+            .map(|s| s.to_string())
+            .or_else(|| response.get("raw_text").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .unwrap_or_else(|| response.to_string());
+
+        if plan.trim().is_empty() {
+            return Err(SystemError::Cognition("Planning returned an empty plan".to_string()));
         }
-        
-        // If we got at least one plan, use the first successful one
-        // In production, implement proper voting/consensus
-        let plan = plans.into_iter().next()
-            .ok_or_else(|| SystemError::Cognition("All plan iterations failed".to_string()))?;
 
         Ok(plan)
     }
@@ -95,8 +129,6 @@ impl CognitionActor {
     async fn handle_generate(&self, mut context: TaskContext) -> Result<String, SystemError> {
         info!("Handling generate request");
 
-        let provider = self.get_provider("generate")?;
-        
         // Chain-of-thought cycle: generate with reasoning and self-critique
         let (system, user) = generate_prompt(
             &context.task,
@@ -111,7 +143,7 @@ impl CognitionActor {
         };
 
         // First pass: generate with reasoning and self-critique
-        let response = provider.chat_json(&system, &full_user).await?;
+        let response = self.chat_with_fallback("generate", &system, &full_user).await?;
         
         // Parse response and check self-critique
         let diff = if let Some(diff_val) = response.get("diff").and_then(|d| d.as_str()) {
@@ -134,7 +166,7 @@ Output ONLY the corrected diff."#;
                     diff_val, self_critique
                 );
                 
-                let fix_response = provider.chat_json(fix_system, &fix_user).await?;
+                let fix_response = self.chat_with_fallback("generate", fix_system, &fix_user).await?;
                 fix_response.get("diff")
                     .and_then(|d| d.as_str())
                     .unwrap_or(diff_val)
@@ -153,8 +185,6 @@ Output ONLY the corrected diff."#;
     async fn handle_debug(&self, context: TaskContext) -> Result<String, SystemError> {
         info!("Handling debug request");
 
-        let provider = self.get_provider("debug")?;
-        
         // Format error graph (should be topologically sorted by compiler.rs)
         let error_graph = context.compiler_errors
             .as_ref()
@@ -166,7 +196,7 @@ Output ONLY the corrected diff."#;
             &context.current_diff.as_deref().unwrap_or("")
         );
 
-        let response = provider.chat_json(&system, &user).await?;
+        let response = self.chat_with_fallback("debug", &system, &user).await?;
         
         // Extract root_cause and fix_diff
         let diff = if let Some(fix_diff) = response.get("fix_diff").and_then(|d| d.as_str()) {
@@ -184,10 +214,9 @@ Output ONLY the corrected diff."#;
     async fn handle_synthesize(&self, context: TaskContext) -> Result<String, SystemError> {
         info!("Handling synthesize request");
 
-        let provider = self.get_provider("synthesize")?;
         let (system, user) = synthesize_prompt(&context.task, &context.current_diff.unwrap_or_default());
 
-        let response = provider.chat_json(&system, &user).await?;
+        let response = self.chat_with_fallback("synthesize", &system, &user).await?;
         
         // Extract summary
         let summary = if let Some(title) = response.get("title").and_then(|t| t.as_str()) {

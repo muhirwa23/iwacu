@@ -23,7 +23,7 @@ impl Supervisor {
         Self {
             cognition_tx,
             environment_tx,
-            task_timeout: Duration::from_secs(300), // 5 minutes timeout per task
+            task_timeout: Duration::from_secs(900), // 15 minutes timeout per phase (slow reasoning models)
         }
     }
 

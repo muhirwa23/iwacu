@@ -64,7 +64,7 @@ impl EnvironmentActor {
             };
 
             if let Err(e) = msg.reply_to.send(result) {
-                error!("Failed to send reply: {}", e);
+                error!("Failed to send reply: {:?}", e);
             }
         }
 
@@ -77,7 +77,7 @@ impl EnvironmentActor {
         Ok(())
     }
 
-    async fn handle_observe(&self, task: String) -> Result<Value, SystemError> {
+    async fn handle_observe(&mut self, task: String) -> Result<Value, SystemError> {
         info!("Handling observe request for: {}", task);
 
         // Extract potential symbol names from task
@@ -87,14 +87,14 @@ impl EnvironmentActor {
         let mut context = String::new();
         let mut locations = Vec::new();
 
-        for symbol in symbols {
-            match self.lsp.get_definition(&symbol).await {
+        for symbol in &symbols {
+            match self.lsp.get_definition(symbol).await {
                 Ok(loc) => {
                     context.push_str(&format!("Symbol '{}' found at {:?}\n", symbol, loc));
                     locations.push(loc.clone());
 
                     // Get references
-                    if let Ok(refs) = self.lsp.get_references(loc).await {
+                    if let Ok(refs) = self.lsp.get_references(&loc).await {
                         context.push_str(&format!(
                             "  References: {} locations\n",
                             refs.len()
@@ -203,6 +203,18 @@ impl EnvironmentActor {
     }
 }
 
-    symbols
+/// Extract potential symbol names from a task description
+/// Looks for identifier-like words (snake_case or CamelCase)
+fn extract_symbols_from_task(task: &str) -> Vec<String> {
+    task.split_whitespace()
+        .map(|word| {
+            word.chars()
+                .filter(|c| c.is_alphanumeric() || *c == '_')
+                .collect::<String>()
+        })
+        .filter(|w| {
+            w.len() > 2 && (w.contains('_') || w.chars().any(|c| c.is_uppercase()))
+        })
+        .collect()
 }
 

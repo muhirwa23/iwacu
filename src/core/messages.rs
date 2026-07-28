@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
-use miette::Diagnostic;
 use tokio::sync::oneshot;
 
-#[derive(Error, Debug, Diagnostic)]
+#[derive(Error, Debug, miette::Diagnostic)]
 pub enum SystemError {
     #[error("Environment error: {0}")]
     #[diagnostic(code(symbiote::environment_error))]

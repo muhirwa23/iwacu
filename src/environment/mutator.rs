@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::fs;
 use syn::{visit_mut::VisitMut, parse_file, Expr, BinOp, LitBool, LitInt};
+use quote::ToTokens;
 use tracing::{info, debug};
 
 use crate::core::messages::SystemError;
@@ -100,8 +101,8 @@ impl Mutator {
         // Apply mutation by simple text replacement (simplified approach)
         // In production, we'd use proper AST manipulation with quote! macro
         let mutated_content = content.replace(
-            &format!("{:?}", original),
-            &format!("{:?}", mutated),
+            &original.to_token_stream().to_string(),
+            &mutated.to_token_stream().to_string(),
         );
 
         // Write mutated file
