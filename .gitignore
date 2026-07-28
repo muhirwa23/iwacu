@@ -1,0 +1,81 @@
+```
+# Rust/Cargo specific
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Dependencies
+**/node_modules/
+
+# Python (if any Python files exist in project)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.ENV
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
+.DS_Store
+Thumbs.db
+
+# Compiled and binary files
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.obj
+*.a
+*.lib
+*.out
+
+# Build artifacts
+dist/
+build/
+*.tar.gz
+*.whl
+
+# Environment files
+.env
+.env.local
+*.env*
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Testing
+.coverage
+htmlcov/
+.nyc_output
+coverage/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+```

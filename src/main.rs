@@ -10,6 +10,7 @@ mod environment;
 use core::messages::TaskContext;
 use core::graph::Supervisor;
 use cognition::{CognitionActor, AnthropicProvider};
+use cognition::provider::ModelRouter;
 use environment::EnvironmentActor;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -33,6 +34,10 @@ struct Args {
     /// Enable verbose logging
     #[arg(short, long)]
     verbose: bool,
+    
+    /// Maximum budget for LLM calls in USD (default: $1.00)
+    #[arg(long, default_value = "1.0")]
+    max_cost: f64,
 }
 
 #[tokio::main]
@@ -56,18 +61,39 @@ async fn main() -> Result<()> {
     println!("🧬 Autonomous Symbiote v3.0");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("Task: {}", args.task);
+    println!("Budget: ${:.2}", args.max_cost);
     println!();
 
     // Resolve repo path
     let repo_path = args.repo.canonicalize().into_diagnostic()?;
     let repo_path_str = repo_path.to_string_lossy().to_string();
 
-    // Initialize actors
-    let provider = Arc::new(AnthropicProvider::new(api_key));
+    // Initialize multi-model router with budget tracking
+    let mut router = ModelRouter::new(args.max_cost);
+    
+    // Create providers for different models
+    let sonnet_provider = Arc::new(
+        AnthropicProvider::new(api_key.clone())
+            .with_model("claude-sonnet-4-20250514".to_string())
+    );
+    
+    let haiku_provider = Arc::new(
+        AnthropicProvider::new(api_key.clone())
+            .with_model("claude-3-haiku-20240307".to_string())
+    );
+    
+    // Register providers with the router
+    router.add_provider("claude-sonnet".to_string(), sonnet_provider);
+    router.add_provider("claude-haiku".to_string(), haiku_provider);
+    router.add_provider("claude-sonnet-4-20250514".to_string(), 
+        Arc::new(AnthropicProvider::new(api_key.clone()).with_model("claude-sonnet-4-20250514".to_string()))
+    );
+    
+    let router = Arc::new(router);
     
     // Create channels for actor communication
-    let (cognition_tx, cognition_rx) = mpsc::channel(100);
-    let (environment_tx, environment_rx) = mpsc::channel(100);
+    let (cognition_tx, cognition_rx) = mpsc::channel(32);
+    let (environment_tx, environment_rx) = mpsc::channel(32);
 
     // Start Environment Actor
     let env_actor = EnvironmentActor::new(repo_path_str.clone())?;
@@ -75,8 +101,8 @@ async fn main() -> Result<()> {
         env_actor.run(environment_rx).await
     });
 
-    // Start Cognition Actor
-    let cog_actor = CognitionActor::new(provider);
+    // Start Cognition Actor with model router
+    let cog_actor = CognitionActor::new(Arc::clone(&router));
     let cog_handle = tokio::spawn(async move {
         cog_actor.run(cognition_rx).await
     });
@@ -88,9 +114,11 @@ async fn main() -> Result<()> {
     match supervisor.run_task(context).await {
         Ok(_) => {
             println!("\n✅ Task completed successfully!");
+            println!("💰 Total cost: ${:.4}", router.budget().spent());
         }
         Err(e) => {
             eprintln!("\n❌ Task failed: {}", e);
+            println!("💰 Cost so far: ${:.4}", router.budget().spent());
             return Err(miette::miette!("{}", e));
         }
     }

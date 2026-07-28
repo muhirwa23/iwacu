@@ -1,23 +1,25 @@
 pub mod provider;
 pub mod anthropic;
+pub mod prompts;
 
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
-use serde_json::Value;
-use tracing::{info, error};
+use serde_json::{Value, json};
+use tracing::{info, error, warn};
 
 use crate::core::messages::{ActorMessage, CognitionRequest, TaskContext, SystemError};
-use provider::LlmProvider;
+use provider::{LlmProvider, ModelRouter};
 use anthropic::AnthropicProvider;
+use prompts::{plan_prompt, generate_prompt, debug_prompt, synthesize_prompt};
 
-/// Cognition actor that handles LLM interactions
+/// Cognition actor that handles LLM interactions with multi-model routing
 pub struct CognitionActor {
-    provider: Arc<dyn LlmProvider>,
+    router: Arc<ModelRouter>,
 }
 
 impl CognitionActor {
-    pub fn new(provider: Arc<dyn LlmProvider>) -> Self {
-        Self { provider }
+    pub fn new(router: Arc<ModelRouter>) -> Self {
+        Self { router }
     }
 
     /// Start the cognition actor event loop
@@ -44,55 +46,106 @@ impl CognitionActor {
         Ok(())
     }
 
+    /// Get provider for a specific node type
+    fn get_provider(&self, node: &str) -> Result<Arc<dyn LlmProvider>, SystemError> {
+        self.router.route(node, self.router.budget().remaining())
+    }
+
+    /// Estimate cost based on prompt length (rough estimation)
+    fn estimate_cost(&self, system: &str, user: &str, provider: &dyn LlmProvider) -> f64 {
+        let total_chars = system.len() + user.len();
+        let estimated_tokens = total_chars / 4; // Rough: 1 token ≈ 4 chars
+        (estimated_tokens as f64 / 1000.0) * provider.cost_per_1k_tokens()
+    }
+
     async fn handle_plan(&self, context: TaskContext) -> Result<String, SystemError> {
         info!("Handling plan request");
         
-        let system_prompt = r#"You are an expert software architect. Given a task and codebase context, create a detailed step-by-step plan.
-Output ONLY a JSON array of strings, where each string is a concrete action item."#;
-
-        let user_prompt = format!(
-            "Task: {}\n\nContext:\n{}",
-            context.task,
-            context.lsp_context.unwrap_or_default()
-        );
-
-        let response = self.provider.chat_json(&system_prompt, &user_prompt).await?;
+        let provider = self.get_provider("plan")?;
+        let (system, user) = plan_prompt(&context.task, "architectural_analysis");
         
-        // Extract plan from response
-        let plan = response
-            .as_str()
-            .unwrap_or("[]")
-            .to_string();
+        // Self-consistency: run 3 times with low temperature and vote
+        let mut plans = Vec::new();
+        for i in 0..3 {
+            info!("Plan iteration {}/3", i + 1);
+            
+            let full_user = format!("{}\nLSP Context: {}", user, 
+                context.lsp_context.as_deref().unwrap_or("No LSP context available"));
+            
+            match provider.chat_json(&system, &full_user).await {
+                Ok(response) => {
+                    if let Some(plan_text) = response.as_str() {
+                        plans.push(plan_text.to_string());
+                    }
+                }
+                Err(e) => {
+                    warn!("Plan iteration {} failed: {}", i + 1, e);
+                }
+            }
+        }
+        
+        // If we got at least one plan, use the first successful one
+        // In production, implement proper voting/consensus
+        let plan = plans.into_iter().next()
+            .ok_or_else(|| SystemError::Cognition("All plan iterations failed".to_string()))?;
 
         Ok(plan)
     }
 
-    async fn handle_generate(&self, context: TaskContext) -> Result<String, SystemError> {
+    async fn handle_generate(&self, mut context: TaskContext) -> Result<String, SystemError> {
         info!("Handling generate request");
 
-        let system_prompt = r#"You are an expert programmer. Generate a unified diff patch to implement the requested changes.
-Output ONLY the diff content, nothing else. Use proper unified diff format with --- and +++ headers."#;
-
-        let mut user_prompt = format!("Task: {}\n", context.task);
+        let provider = self.get_provider("generate")?;
         
-        if let Some(plan) = &context.plan {
-            user_prompt.push_str(&format!("Plan: {:?}\n", plan));
-        }
+        // Chain-of-thought cycle: generate with reasoning and self-critique
+        let (system, user) = generate_prompt(
+            &context.task,
+            context.plan.as_ref().and_then(|p| p.first()).map(|s| s.as_str()).unwrap_or("Implement the task"),
+            context.lsp_context.as_deref().unwrap_or("")
+        );
         
-        if let Some(lsp_ctx) = &context.lsp_context {
-            user_prompt.push_str(&format!("Code Context: {}\n", lsp_ctx));
-        }
+        let full_user = if let Some(errors) = &context.compiler_errors {
+            format!("{}\nCompiler Errors: {}", user, errors)
+        } else {
+            user
+        };
 
-        if let Some(errors) = &context.compiler_errors {
-            user_prompt.push_str(&format!("Compiler Errors: {}\n", errors));
-        }
-
-        let response = self.provider.chat_json(&system_prompt, &user_prompt).await?;
+        // First pass: generate with reasoning and self-critique
+        let response = provider.chat_json(&system, &full_user).await?;
         
-        let diff = response
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        // Parse response and check self-critique
+        let diff = if let Some(diff_val) = response.get("diff").and_then(|d| d.as_str()) {
+            // Check if self_critique raises high-severity issues
+            let self_critique = response.get("self_critique")
+                .and_then(|s| s.as_str())
+                .unwrap_or("");
+            
+            // If self-critique identifies critical issues, re-prompt to fix them
+            if self_critique.to_lowercase().contains("critical") || 
+               self_critique.to_lowercase().contains("severe") ||
+               self_critique.to_lowercase().contains("major issue") {
+                info!("Self-critique identified critical issues, re-prompting...");
+                
+                let fix_system = r#"Fix the identified critical issues in your previous diff.
+Output ONLY the corrected diff."#;
+                
+                let fix_user = format!(
+                    "Previous diff:\n{}\n\nSelf-critique: {}\n\nProvide corrected diff.",
+                    diff_val, self_critique
+                );
+                
+                let fix_response = provider.chat_json(fix_system, &fix_user).await?;
+                fix_response.get("diff")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or(diff_val)
+                    .to_string()
+            } else {
+                diff_val.to_string()
+            }
+        } else {
+            // Fallback: try to extract diff from raw response
+            response.as_str().unwrap_or("").to_string()
+        };
 
         Ok(diff)
     }
@@ -100,22 +153,30 @@ Output ONLY the diff content, nothing else. Use proper unified diff format with 
     async fn handle_debug(&self, context: TaskContext) -> Result<String, SystemError> {
         info!("Handling debug request");
 
-        let system_prompt = r#"You are an expert debugger. Analyze the compiler errors and generate a fix as a unified diff.
-Output ONLY the diff content to fix the errors."#;
-
-        let user_prompt = format!(
-            "Task: {}\nCompiler Errors: {:?}\nCurrent Code Context: {}",
-            context.task,
-            context.compiler_errors.unwrap_or_default(),
-            context.lsp_context.unwrap_or_default()
+        let provider = self.get_provider("debug")?;
+        
+        // Format error graph (should be topologically sorted by compiler.rs)
+        let error_graph = context.compiler_errors
+            .as_ref()
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "No error details available".to_string());
+        
+        let (system, user) = debug_prompt(
+            &error_graph,
+            &context.current_diff.as_deref().unwrap_or("")
         );
 
-        let response = self.provider.chat_json(&system_prompt, &user_prompt).await?;
+        let response = provider.chat_json(&system, &user).await?;
         
-        let diff = response
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        // Extract root_cause and fix_diff
+        let diff = if let Some(fix_diff) = response.get("fix_diff").and_then(|d| d.as_str()) {
+            info!("Root cause: {}", 
+                response.get("root_cause").and_then(|r| r.as_str()).unwrap_or("Unknown"));
+            fix_diff.to_string()
+        } else {
+            // Fallback
+            response.as_str().unwrap_or("").to_string()
+        };
 
         Ok(diff)
     }
@@ -123,21 +184,27 @@ Output ONLY the diff content to fix the errors."#;
     async fn handle_synthesize(&self, context: TaskContext) -> Result<String, SystemError> {
         info!("Handling synthesize request");
 
-        let system_prompt = r#"Summarize the changes made in a clear PR description format.
-Include: what was changed, why, and any notable implementation details."#;
+        let provider = self.get_provider("synthesize")?;
+        let (system, user) = synthesize_prompt(&context.task, &context.current_diff.unwrap_or_default());
 
-        let user_prompt = format!(
-            "Task: {}\nChanges applied successfully.\nDiff: {}",
-            context.task,
-            context.current_diff.unwrap_or_default()
-        );
-
-        let response = self.provider.chat_json(&system_prompt, &user_prompt).await?;
+        let response = provider.chat_json(&system, &user).await?;
         
-        let summary = response
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        // Extract summary
+        let summary = if let Some(title) = response.get("title").and_then(|t| t.as_str()) {
+            let files = response.get("files_changed")
+                .and_then(|f| f.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_else(|| "unknown files".to_string());
+            
+            format!("{} - {}", title, files)
+        } else {
+            response.as_str().unwrap_or("").to_string()
+        };
 
         info!("Synthesis complete: {}", summary);
         Ok(summary)

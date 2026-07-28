@@ -34,6 +34,10 @@ pub enum SystemError {
     #[diagnostic(code(symbiote::max_attempts_exceeded))]
     MaxAttemptsExceeded,
 
+    #[error("Timeout error: {0}")]
+    #[diagnostic(code(symbiote::timeout_error))]
+    Timeout(String),
+
     #[error("IO error: {0}")]
     #[diagnostic(code(symbiote::io_error))]
     Io(#[from] std::io::Error),
@@ -97,6 +101,7 @@ pub enum EnvironmentRequest {
     Observe(String),
     ApplyDiff(String),
     RunTests,
+    CleanupWorktree,
     GetDefinition(String),
     GetReferences(Location),
 }

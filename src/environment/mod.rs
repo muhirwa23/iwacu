@@ -54,6 +54,7 @@ impl EnvironmentActor {
                 EnvironmentRequest::Observe(task) => self.handle_observe(task).await,
                 EnvironmentRequest::ApplyDiff(diff) => self.handle_apply_diff(diff).await,
                 EnvironmentRequest::RunTests => self.handle_run_tests().await,
+                EnvironmentRequest::CleanupWorktree => self.handle_cleanup_worktree().await,
                 EnvironmentRequest::GetDefinition(symbol) => {
                     self.handle_get_definition(symbol).await
                 }
@@ -174,6 +175,17 @@ impl EnvironmentActor {
         }
     }
 
+    async fn handle_cleanup_worktree(&mut self) -> Result<Value, SystemError> {
+        info!("Handling cleanup worktree request");
+
+        if let Some(path) = &self.worktree_path.take() {
+            self.git.cleanup_worktree(path)?;
+            info!("Cleaned up worktree at: {}", path);
+        }
+
+        Ok(json!({"success": true, "message": "Worktree cleaned up"}))
+    }
+
     async fn handle_get_definition(&self, symbol: String) -> Result<Value, SystemError> {
         info!("Getting definition for: {}", symbol);
 
@@ -191,53 +203,6 @@ impl EnvironmentActor {
     }
 }
 
-/// Extract potential symbol names from a task description
-fn extract_symbols_from_task(task: &str) -> Vec<String> {
-    // Simple heuristic: extract words that look like function/method names
-    // In production, this would be more sophisticated
-    let mut symbols = Vec::new();
-
-    // Look for quoted strings first
-    for cap in regex::Regex::new(r#"["']([a-zA-Z_][a-zA-Z0-9_]*)["']"#)
-        .unwrap()
-        .captures_iter(task)
-    {
-        if let Some(m) = cap.get(1) {
-            symbols.push(m.as_str().to_string());
-        }
-    }
-
-    // If no quoted symbols, try to extract likely candidates
-    if symbols.is_empty() {
-        for word in task.split_whitespace() {
-            let cleaned = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
-            if cleaned.len() > 2 && cleaned.chars().next().unwrap_or(' ').is_lowercase() {
-                symbols.push(cleaned.to_string());
-            }
-        }
-    }
-
-    symbols.truncate(5); // Limit to 5 symbols
     symbols
 }
 
-// Add regex dependency to Cargo.toml
-// For now, use a simple implementation without regex
-fn extract_symbols_from_task_simple(task: &str) -> Vec<String> {
-    let mut symbols = Vec::new();
-    
-    // Simple extraction of potential function names
-    for word in task.split_whitespace() {
-        let cleaned: String = word
-            .chars()
-            .filter(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
-        
-        if cleaned.len() > 2 && !cleaned.chars().all(|c| c.is_numeric()) {
-            symbols.push(cleaned);
-        }
-    }
-    
-    symbols.truncate(5);
-    symbols
-}

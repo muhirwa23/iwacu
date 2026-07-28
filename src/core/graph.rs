@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
+use tokio::time::{timeout, Duration};
 use serde_json::Value;
 use tracing::{info, warn, error};
 
@@ -11,6 +12,7 @@ use crate::core::messages::{
 pub struct Supervisor {
     cognition_tx: mpsc::Sender<ActorMessage<CognitionRequest>>,
     environment_tx: mpsc::Sender<ActorMessage<EnvironmentRequest>>,
+    task_timeout: Duration,
 }
 
 impl Supervisor {
@@ -21,6 +23,7 @@ impl Supervisor {
         Self {
             cognition_tx,
             environment_tx,
+            task_timeout: Duration::from_secs(300), // 5 minutes timeout per task
         }
     }
 
@@ -39,8 +42,9 @@ impl Supervisor {
             .await
             .map_err(|e| SystemError::Environment(e.to_string()))?;
 
-        let lsp_result = rx
+        let lsp_result = timeout(self.task_timeout, rx)
             .await
+            .map_err(|_| SystemError::Timeout("Timeout waiting for LSP context".to_string()))?
             .map_err(|e| SystemError::Environment(e.to_string()))??;
         
         context.lsp_context = Some(lsp_result.to_string());
@@ -54,8 +58,9 @@ impl Supervisor {
             .await
             .map_err(|e| SystemError::Cognition(e.to_string()))?;
 
-        let plan_result = rx
+        let plan_result = timeout(self.task_timeout, rx)
             .await
+            .map_err(|_| SystemError::Timeout("Timeout waiting for plan".to_string()))?
             .map_err(|e| SystemError::Cognition(e.to_string()))??;
         
         if let Value::Array(arr) = plan_result {
@@ -75,8 +80,9 @@ impl Supervisor {
                 .await
                 .map_err(|e| SystemError::Cognition(e.to_string()))?;
 
-            let diff_result = rx
+            let diff_result = timeout(self.task_timeout, rx)
                 .await
+                .map_err(|_| SystemError::Timeout("Timeout waiting for diff generation".to_string()))?
                 .map_err(|e| SystemError::Cognition(e.to_string()))??;
             
             context.current_diff = Some(diff_result.as_str().unwrap_or("").to_string());
@@ -93,8 +99,9 @@ impl Supervisor {
                 .await
                 .map_err(|e| SystemError::Environment(e.to_string()))?;
 
-            let apply_result = rx
+            let apply_result = timeout(self.task_timeout, rx)
                 .await
+                .map_err(|_| SystemError::Timeout("Timeout waiting for diff application".to_string()))?
                 .map_err(|e| SystemError::Environment(e.to_string()))??;
             
             info!("Diff applied: {}", apply_result);
@@ -107,8 +114,9 @@ impl Supervisor {
                 .await
                 .map_err(|e| SystemError::Environment(e.to_string()))?;
 
-            let test_result = rx
+            let test_result = timeout(self.task_timeout, rx)
                 .await
+                .map_err(|_| SystemError::Timeout("Timeout waiting for test results".to_string()))?
                 .map_err(|e| SystemError::Environment(e.to_string()))??;
             
             let test_success = test_result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
@@ -129,8 +137,9 @@ impl Supervisor {
                         .await
                         .map_err(|e| SystemError::Cognition(e.to_string()))?;
 
-                    let _synth_result = rx
+                    let _synth_result = timeout(self.task_timeout, rx)
                         .await
+                        .map_err(|_| SystemError::Timeout("Timeout waiting for synthesis".to_string()))?
                         .map_err(|e| SystemError::Cognition(e.to_string()))??;
                     
                     info!("Task completed successfully");
@@ -156,13 +165,24 @@ impl Supervisor {
                     .await
                     .map_err(|e| SystemError::Cognition(e.to_string()))?;
 
-                let debug_result = rx
+                let debug_result = timeout(self.task_timeout, rx)
                     .await
+                    .map_err(|_| SystemError::Timeout("Timeout waiting for debug response".to_string()))?
                     .map_err(|e| SystemError::Cognition(e.to_string()))??;
                 
                 context.current_diff = Some(debug_result.as_str().unwrap_or("").to_string());
             } else {
                 error!("Max attempts exceeded");
+                
+                // Cleanup worktree before returning
+                let (cleanup_tx, cleanup_rx) = oneshot::channel();
+                self.environment_tx
+                    .send(ActorMessage::new(EnvironmentRequest::CleanupWorktree, cleanup_tx))
+                    .await
+                    .ok();
+                
+                let _ = cleanup_rx.await;
+                
                 return Err(SystemError::MaxAttemptsExceeded);
             }
         }

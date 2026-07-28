@@ -26,3 +26,4 @@ async-trait = "0.1"
 [[bin]]
 name = "agentic"
 path = "src/main.rs"
+regex = "2.0"
