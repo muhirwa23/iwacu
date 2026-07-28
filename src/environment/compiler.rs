@@ -1,9 +1,8 @@
-use std::path::Path;
 use std::process::{Command, Stdio};
 use serde_json::{Value, json};
-use tracing::{info, debug, warn};
+use tracing::info;
 
-use crate::core::messages::{SystemError, TestResult, Diagnostic, Span, Suggestion};
+use crate::core::messages::{SystemError, TestResult, Diagnostic};
 
 /// Represents a dependency edge in the error graph: (parent_error_idx, child_error_idx)
 /// where child_error is caused by parent_error
@@ -228,7 +227,7 @@ impl Compiler {
                 has_errors = true;
                 
                 // Add a diagnostic for stderr content
-                let idx = graph.add_error(Diagnostic {
+                let _idx = graph.add_error(Diagnostic {
                     file: "stderr".to_string(),
                     line: 0,
                     code: "compiler".to_string(),

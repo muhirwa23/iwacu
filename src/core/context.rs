@@ -3,7 +3,7 @@ use crate::core::messages::{TaskContext, SymbolInfo};
 /// Extended context operations
 impl TaskContext {
     /// Add a symbol to the context and track affected files
-    pub fn with_symbol(mut self, mut symbol: SymbolInfo) -> Self {
+    pub fn with_symbol(mut self, symbol: SymbolInfo) -> Self {
         let file_path = symbol.file_path.clone();
         self.symbols.push(symbol);
         if !self.affected_files.contains(&file_path) {

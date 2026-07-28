@@ -1,11 +1,10 @@
-use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{timeout, Duration};
 use serde_json::Value;
 use tracing::{info, warn, error};
 
 use crate::core::messages::{
-    ActorMessage, CognitionRequest, EnvironmentRequest, TaskContext, SystemError, TestResult,
+    ActorMessage, CognitionRequest, EnvironmentRequest, TaskContext, SystemError,
 };
 
 /// Supervisor actor that orchestrates the task execution flow

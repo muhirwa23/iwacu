@@ -1,7 +1,6 @@
-use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use serde_json::{Value, json};
-use tracing::{info, debug, warn};
+use tracing::{info, debug};
 
 use crate::core::messages::{SystemError, Location, Range, Position};
 

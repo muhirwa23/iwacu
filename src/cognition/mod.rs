@@ -4,13 +4,12 @@ pub mod nvidia;
 pub mod prompts;
 
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
-use serde_json::{Value, json};
+use tokio::sync::mpsc;
+use serde_json::Value;
 use tracing::{info, error, warn};
 
 use crate::core::messages::{ActorMessage, CognitionRequest, TaskContext, SystemError};
 use provider::{LlmProvider, ModelRouter};
-pub use anthropic::AnthropicProvider;
 pub use nvidia::NvidiaProvider;
 use prompts::{plan_prompt, generate_prompt, debug_prompt, synthesize_prompt};
 
@@ -26,7 +25,7 @@ impl CognitionActor {
 
     /// Start the cognition actor event loop
     pub async fn run(
-        mut self,
+        self,
         mut rx: mpsc::Receiver<ActorMessage<CognitionRequest>>,
     ) -> Result<(), SystemError> {
         info!("Cognition actor started");
@@ -126,7 +125,7 @@ impl CognitionActor {
         Ok(plan)
     }
 
-    async fn handle_generate(&self, mut context: TaskContext) -> Result<String, SystemError> {
+    async fn handle_generate(&self, context: TaskContext) -> Result<String, SystemError> {
         info!("Handling generate request");
 
         // Chain-of-thought cycle: generate with reasoning and self-critique

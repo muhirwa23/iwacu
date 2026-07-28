@@ -1,3 +1,8 @@
+// Intentional scaffolding retained for the full architecture (alternate LLM
+// backend, budget/router helpers, LSP definition/reference lookups, mutation
+// variants) that isn't wired into every code path yet.
+#![allow(dead_code)]
+
 use clap::Parser;
 use std::path::PathBuf;
 use miette::{IntoDiagnostic, Result};
@@ -13,15 +18,16 @@ use cognition::{CognitionActor, NvidiaProvider};
 use cognition::provider::ModelRouter;
 use environment::EnvironmentActor;
 use std::sync::Arc;
+use std::io::Write;
 use tokio::sync::mpsc;
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 #[derive(Parser, Debug)]
 #[command(name = "agentic")]
 #[command(about = "The Autonomous Symbiote v3.0 - AI-powered code engineering CLI")]
 struct Args {
-    /// The task to execute
-    #[arg(required = true)]
-    task: String,
+    /// The task to execute. If omitted, the CLI starts in interactive mode.
+    task: Option<String>,
 
     /// Path to the repository (defaults to current directory)
     #[arg(short, long, default_value = ".")]
@@ -30,6 +36,10 @@ struct Args {
     /// NVIDIA API key (or set NVIDIA_API_KEY env var)
     #[arg(short, long, env = "NVIDIA_API_KEY")]
     api_key: Option<String>,
+
+    /// Start an interactive REPL session (default when no task is given)
+    #[arg(short, long)]
+    interactive: bool,
 
     /// Enable verbose logging
     #[arg(short, long)]
@@ -76,7 +86,6 @@ async fn main() -> Result<()> {
 
     println!("🧬 Autonomous Symbiote v3.0");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("Task: {}", args.task);
     println!("Budget: ${:.2}", args.max_cost);
     println!();
 
@@ -135,25 +144,81 @@ async fn main() -> Result<()> {
         cog_actor.run(cognition_rx).await
     });
 
-    // Create Supervisor and run task
-    let supervisor = Supervisor::new(cognition_tx, environment_tx);
-    let context = TaskContext::new(args.task);
+    // Create Supervisor (reused across tasks in interactive mode).
+    let supervisor = Supervisor::new(cognition_tx.clone(), environment_tx.clone());
 
-    match supervisor.run_task(context).await {
-        Ok(_) => {
-            println!("\n✅ Task completed successfully!");
-            println!("💰 Total cost: ${:.4}", router.budget().spent());
+    // Interactive when explicitly requested or when no task argument is given.
+    let interactive = args.interactive || args.task.is_none();
+
+    if interactive {
+        println!("Interactive mode — type a task and press Enter. Type 'exit' or 'quit' to leave.");
+        println!("Repo: {}\n", repo_path_str);
+
+        let mut reader = BufReader::new(tokio::io::stdin());
+        let mut line = String::new();
+
+        loop {
+            print!("rekon> ");
+            std::io::stdout().flush().ok();
+
+            line.clear();
+            let n = reader.read_line(&mut line).await.into_diagnostic()?;
+            if n == 0 {
+                println!();
+                break; // EOF (Ctrl-D)
+            }
+
+            let task = line.trim();
+            if task.is_empty() {
+                continue;
+            }
+            if task.eq_ignore_ascii_case("exit") || task.eq_ignore_ascii_case("quit") {
+                break;
+            }
+
+            println!("\n▶ Running task: {}\n", task);
+            let context = TaskContext::new(task.to_string());
+            match supervisor.run_task(context).await {
+                Ok(_) => {
+                    println!("\n✅ Task completed successfully!");
+                    println!("💰 Total cost so far: ${:.4}", router.budget().spent());
+                }
+                Err(e) => {
+                    eprintln!("\n❌ Task failed: {}", e);
+                    println!("💰 Cost so far: ${:.4}", router.budget().spent());
+                }
+            }
+            println!();
         }
-        Err(e) => {
-            eprintln!("\n❌ Task failed: {}", e);
-            println!("💰 Cost so far: ${:.4}", router.budget().spent());
-            return Err(miette::miette!("{}", e));
+
+        println!("👋 Exiting interactive session.");
+    } else {
+        let task = args.task.clone().expect("task present in non-interactive mode");
+        println!("Task: {}\n", task);
+        let context = TaskContext::new(task);
+
+        match supervisor.run_task(context).await {
+            Ok(_) => {
+                println!("\n✅ Task completed successfully!");
+                println!("💰 Total cost: ${:.4}", router.budget().spent());
+            }
+            Err(e) => {
+                eprintln!("\n❌ Task failed: {}", e);
+                println!("💰 Cost so far: ${:.4}", router.budget().spent());
+                drop(supervisor);
+                drop(cognition_tx);
+                drop(environment_tx);
+                let _ = tokio::join!(env_handle, cog_handle);
+                return Err(miette::miette!("{}", e));
+            }
         }
     }
 
     // Cleanup: drop senders to signal actors to stop
     drop(supervisor);
-    
+    drop(cognition_tx);
+    drop(environment_tx);
+
     // Wait for actors to finish
     let _ = tokio::join!(env_handle, cog_handle);
 

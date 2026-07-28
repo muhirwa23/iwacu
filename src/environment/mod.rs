@@ -4,13 +4,12 @@ pub mod compiler;
 pub mod mutator;
 
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use serde_json::{Value, json};
 use tracing::{info, error, warn};
-use uuid::Uuid;
 
 use crate::core::messages::{
-    ActorMessage, EnvironmentRequest, SystemError, TestResult, Diagnostic, Location,
+    ActorMessage, EnvironmentRequest, SystemError, Location,
 };
 use git::GitTools;
 use lsp::LspClient;

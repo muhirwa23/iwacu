@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::fs;
-use syn::{visit_mut::VisitMut, parse_file, Expr, BinOp, LitBool, LitInt};
+use syn::{visit_mut::VisitMut, parse_file, Expr, BinOp};
 use quote::ToTokens;
 use tracing::{info, debug};
 
@@ -162,7 +162,7 @@ impl VisitMut for MutationVisitor {
                 match &bin.op {
                     BinOp::Eq(_) => {
                         // == becomes !=
-                        let mutated = bin.clone();
+                        let _mutated = bin.clone();
                         // Note: This is simplified - proper implementation would use quote!
                         self.add_mutant(expr.clone(), expr.clone());
                     }
@@ -178,7 +178,7 @@ impl VisitMut for MutationVisitor {
                 match &lit.lit {
                     syn::Lit::Bool(b) => {
                         // Flip boolean
-                        let new_val = !b.value;
+                        let _new_val = !b.value;
                         // Placeholder - proper implementation would construct new AST
                         self.add_mutant(expr.clone(), expr.clone());
                     }
