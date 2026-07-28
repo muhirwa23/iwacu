@@ -1,8 +1,8 @@
 [package]
-name = "symbiote"
+name = "rekon"
 version = "0.1.0"
 edition = "2021"
-description = "The Autonomous Symbiote v3.0 - A local-first, actor-based agentic CLI"
+description = "Rekon - The Autonomous Symbiote v3.0 - A local-first, actor-based agentic CLI"
 
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
@@ -24,6 +24,5 @@ clap = { version = "4.4", features = ["derive"] }
 async-trait = "0.1"
 
 [[bin]]
-name = "agentic"
+name = "rekon"
 path = "src/main.rs"
-regex = "2.0"
